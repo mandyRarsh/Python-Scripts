@@ -1,26 +1,42 @@
 from datetime import datetime
+from email.mime.text import MIMEText
 import sys
 import os, os.path
-#import lxml shouldn't need this anymore
 import smtplib
 import platform
-from email.mime.text import MIMEText
+import ConfigParser
 
+#get app directory
+appDirectory = os.path.dirname(os.path.abspath('__file__'))
 
-userFlag = '<User-Name data_type="1">'                                 #tag for username
-userFlagEnd = '</User-Name>'
-timeStampFlag = '<Timestamp data_type="4">'                            #tag for date/time
-timeStampFlagEnd = '</Timestamp>'
-IPFlag = '<Tunnel-Client-Endpt data_type="1">'                         #tag for connecting IP address
-IPFlagEnd = '</Tunnel-Client-Endpt>'
+#find config file
+configParser = ConfigParser.RawConfigParser()
+configFilePath = appDirectory + '\\email-vpn-logs.config'
+
+#read in config
+configParser.read(configFilePath)
+
+logFilePath = configParser.get('Log', 'logFilePath')
+
+userFlagStart = configParser.get('Flags', 'userFlagStart')                               
+userFlagEnd = configParser.get('Flags', 'userFlagEnd') 
+timeStampFlagStart = configParser.get('Flags', 'timeStampFlagStart')                             
+timeStampFlagEnd = configParser.get('Flags', 'timeStampFlagEnd') 
+IPFlagStart = configParser.get('Flags', 'IPFlagStart')                   
+IPFlagEnd = configParser.get('Flags', 'IPFlagEnd') 
+
+emailTo = configParser.get('Email', 'emailTo')  
+emailFrom = configParser.get('Email', 'emailFrom')
+SMTPServer = configParser.get('Email', 'SMTPServer')
+SMTPUsername = configParser.get('Email', 'SMTPUsername')
+SMTPPassword = configParser.get('Email', 'SMTPPassword')
+SMTPPort = configParser.get('Email', 'SMTPPort')
 
 users = ''
 times = ''
 IPs = ''
 
-userhome = os.path.expanduser('~')
-desktop = userhome + '\Desktop\\'
-
+desktop = appDirectory
 
 def readNewFile(path):                                                   #open latest log file
      fileName = path + "\\" + max(os.listdir(path))
@@ -32,17 +48,14 @@ def parseLog(log, users, times, IPs):                                    #parse 
      while True:
           line = log.readline()
           for item in line.split(userFlagEnd):                           # grab users
-               if userFlag in item:               
-                    #users += item [ item.find(userFlag)+len(userFlag) : ]
-                     users += item [ item.find(userFlag)+len(userFlag) : ] + ","
+               if userFlagStart in item:               
+                     users += item [ item.find(userFlagStart)+len(userFlagStart) : ] + ","
           for item in line.split(timeStampFlagEnd):
-               if timeStampFlag in item:
-                    #times += item [ item.find(timeStampFlag)+len(timeStampFlag) : ]
-                    times += item [ item.find(timeStampFlag)+len(timeStampFlag) : ]+ ","
+               if timeStampFlagStart in item:
+                    times += item [ item.find(timeStampFlagStart)+len(timeStampFlagStart) : ]+ ","
           for item in line.split(IPFlagEnd):
-               if IPFlag in item:
-                    #IPs += item [ item.find(IPFlag)+len(IPFlag) : ]
-                    IPs += item [ item.find(IPFlag)+len(IPFlag) : ]+ ","
+               if IPFlagStart in item:
+                    IPs += item [ item.find(IPFlagStart)+len(IPFlagStart) : ]+ ","
                
           if line == '':
                log.close()
@@ -55,23 +68,24 @@ def formatFile(users, times, IPs): #put everything in array
      IPsL = IPs.split(',')     
      x=0
      newFile = open(desktop + 'temp_email.txt','w')
-     newFile.write("REPORT DATE: " + str(datetime.now()))
+     newFile.write("REPORT DATE: " + str(datetime.now()) + "\n\n" + "LOG FILE PATH: " + logFilePath + "\n")
      newFile.write("=" * 100+"\n")
      while x < len(usersL):         
           newFile.write("\n" + usersL[x] + "\n " +timesL[x] + "\n" + IPsL[x]+"\n") 
           x+=1
      newFile.close()
      print "Formatting file for email..."
+     
 
 def sendEmail (desktop):
-     print "Sending email"
+     print "Sending email..."
      fp = open(desktop + 'temp_email.txt', 'rb')
      # Create a text/plain message
      msg = MIMEText(fp.read())
      fp.close()
 
-     me = 'notifications@neurocogtrials.com'	 #receiver's email
-     you = 'ryan.fitzpatrick@neurocogtrials.com' #your email          
+     me = emailFrom
+     you = emailTo       
 
      msg['Subject'] = 'VPN Usage For ' + str(datetime.now())
      msg['From'] = me
@@ -79,17 +93,22 @@ def sendEmail (desktop):
 
      # Send the message via our own SMTP server, but don't include the
      # envelope header.
-     s = smtplib.SMTP('smtp.sendgrid.net', 25)				  #host and port number for smtp server
-     s.login('<username goes here>', '<password goes here>')  #generalize this for credentials to any SMTP server
+     s = smtplib.SMTP(SMTPServer, SMTPPort)
+     s.login(SMTPUsername, SMTPPassword)
      s.sendmail(me, [you], msg.as_string())
      s.quit()
      print "SUCCESS!"
      
-log = readNewFile("U:\RadiusLogs")
-users, times, IPs = parseLog(log, users, times, IPs)
-formatFile(users, times, IPs)
-sendEmail(desktop)
-os.remove(desktop + 'temp_email.txt')
-raw_input()
-sys.exit()
+def main ():
+     users = ''
+     times = ''
+     IPs = ''
+     log = readNewFile(logFilePath)
+     users, times, IPs = parseLog(log, users, times, IPs)
+     formatFile(users, times, IPs)
+     sendEmail(desktop)
+     os.remove(desktop + 'temp_email.txt')
+     sys.exit()
+
+main()
 
