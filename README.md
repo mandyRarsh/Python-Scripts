@@ -15,8 +15,8 @@ getRadiusVPNLogs is specifically designed to:
 1. Use Py2Exe to create executable (http://www.py2exe.org/index.cgi/Tutorial)
 2. Alter example.ini to match needed settings
 3. Run .exe in same directory as .ini
-4. Use flag/argument to run:
-  a. first argument is name of .ini file
+4. Use flag/argument to run: <br>
+  a. first argument is name of .ini file <br>
   b. second argument is -repeats or -norepeats depending on if repeated user entries in log should be captured
 
 
