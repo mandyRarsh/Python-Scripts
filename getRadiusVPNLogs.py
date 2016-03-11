@@ -11,8 +11,8 @@ appDirectory = os.path.dirname(os.path.abspath('__file__'))
 
 #find config file
 configParser = ConfigParser.RawConfigParser()
-configFilePath = appDirectory + '\\email-vpn-logs.config'
-
+configFilePath = appDirectory + '\\' + str(sys.argv[1])
+     
 #read in config
 configParser.read(configFilePath)
 
@@ -31,10 +31,6 @@ SMTPServer = configParser.get('Email', 'SMTPServer')
 SMTPUsername = configParser.get('Email', 'SMTPUsername')
 SMTPPassword = configParser.get('Email', 'SMTPPassword')
 SMTPPort = configParser.get('Email', 'SMTPPort')
-
-users = ''
-times = ''
-IPs = ''
 
 desktop = appDirectory
 
@@ -62,6 +58,26 @@ def parseLog(log, users, times, IPs):                                    #parse 
                print "User data captured"
                return users, times, IPs
 
+def parseLogNoRepeats(log, users, times, IPs):                        #parse out needed properties (if user exists in array, skip
+     while True:
+          line = log.readline()
+          for item in line.split(userFlagEnd):                           # grab users
+               if userFlagStart in item:
+                     possibleUser = item [ item.find(userFlagStart)+len(userFlagStart) : ]
+                     if possibleUser not in users:
+                         users += possibleUser + ","
+                    
+                         for item in line.split(timeStampFlagEnd):
+                              if timeStampFlagStart in item:
+                                   times += item [ item.find(timeStampFlagStart)+len(timeStampFlagStart) : ]+ ","
+                         for item in line.split(IPFlagEnd):
+                              if IPFlagStart in item:
+                                   IPs += item [ item.find(IPFlagStart)+len(IPFlagStart) : ]+ ","               
+          if line == '':
+               log.close()
+               print "User data captured"
+               return users, times, IPs
+
 def formatFile(users, times, IPs): #put everything in array
      usersL = users.split(',')
      timesL = times.split(',')
@@ -70,7 +86,7 @@ def formatFile(users, times, IPs): #put everything in array
      newFile = open(desktop + 'temp_email.txt','w')
      newFile.write("REPORT DATE: " + str(datetime.now()) + "\n\n" + "LOG FILE PATH: " + logFilePath + "\n")
      newFile.write("=" * 100+"\n")
-     while x < len(usersL):         
+     while ((x < len(usersL)) and (x < len(timesL)) and (x < len(IPsL))):         
           newFile.write("\n" + usersL[x] + "\n " +timesL[x] + "\n" + IPsL[x]+"\n") 
           x+=1
      newFile.close()
@@ -104,7 +120,10 @@ def main ():
      times = ''
      IPs = ''
      log = readNewFile(logFilePath)
-     users, times, IPs = parseLog(log, users, times, IPs)
+     if str(sys.argv[2]) == '-repeats':
+          users, times, IPs = parseLog(log, users, times, IPs)
+     elif str(sys.argv[2]) == '-norepeats':
+          users, times, IPs = parseLogNoRepeats(log, users, times, IPs)
      formatFile(users, times, IPs)
      sendEmail(desktop)
      os.remove(desktop + 'temp_email.txt')
